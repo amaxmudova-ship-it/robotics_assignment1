@@ -1,0 +1,7 @@
+steps_M4_run1_078.txt, 11.2
+steps_M4_run2_078.txt, 11.2
+steps_M3_078.txt, 11.2
+signal_M4_square_078.txt, 11.3
+signal_M4_chirp_078.txt, 11.3
+signal_M3_square_078.txt, 11.3
+signal_M3_chirp_078.txt, 11.3
