@@ -256,3 +256,207 @@ $\frac{1}{k_e\sqrt{1 + (2\pi f T_m)^2}}$ and the lag with $\arctan(2\pi f T_m)$.
   ## 5. Artifact analysis
 Each artifact from the assignment table is measured below. The interpretation is in section 6.
 
+**M4 is not the same in both directions; M3 almost is.**
+- **M4** turns 6–8 % faster forward than backward at the same PWM (7.6 % at 10 %, 6.5 % at 100 %). Its forward slope is 10 % higher.
+- **M3** differs by only 1 % at 10 % and 2.6 % at 100 % (slope difference 7 %).
+- **$T_m$:** the difference between directions is not reliable, because $T_m$ changes much more with PWM than with direction
+  (Figure 4.3).
+
+The two runs of the same motor agree within about 1–2 % (section 5.8), so the 6–8 % difference of M4 is real. You can see it in the
+square wave: M4's angle moves a bit further forward every period (Figure 4.4).
+
+Possible reasons: the brushes inside the motor are not exactly centred, the gearbox has more friction in one direction, or the two
+halves of the motor driver are not identical.
+
+**The encoder does not drift.** When the motor was off for 3 s, the encoder did not change by even one count, in all three
+records. Every M4 coasting window also ended with the wheel standing still.
+
+Three other things were found:
+1. **The clock does not start at 0.** The first `time()` value is 20–21 ms in the step files and 29–37 ms in the signal files. This is the
+   time spent on Remove File, Clear Encoder and the first loop. The notebook subtracts the first time value of every segment.
+2. **`steps_M3_078.txt` holds two runs, one after the other.** The time jumps back to the start at row 3045, because the file was not
+   deleted between the two runs. The first run has no motor-off part; it starts directly with the −100 % step at 3050 ms. The
+   notebook splits the file into two runs without changing it.
+3. **The wheel does not end at the same angle after a series** (M4: +710° after run 1, +322° after run 2). This is not drift. The
+   series is symmetric in PWM, but the wheel travels a bit more forward than backward and does not coast the same distance every
+   time, and these differences add up. The M3 values in the "last 0.3 s of coasting" column (8–30 counts) mean that the wheel was still
+   turning when the next step started (section 5.5), not that the encoder drifted.
+
+**Dead zone: below 10 %. Starting from rest, about 9–15 %.**
+- Every ±10 % step made both wheels turn, at 3.8–4.7 rad/s (about 30 % of full speed). So the dead zone is below 10 %, and steps of
+  10 % are too coarse to measure it exactly.
+- The chirp starts from rest and increases PWM slowly from 0 %. M4 first moved between 9 and 12 %, M3 between 15 and 18 %. These values
+  are a little too high, because the motor reacts with some delay.
+
+Together this means the wheel has to **break free first** (static friction). Once it is free, it jumps straight to a high speed: at
+±10 % the wheel is almost at full speed from the very first sample, with no smooth start. That is why two of the five failed step fits
+in section 4.2 are the ±10 % steps.
+
+The straight line through the 40–100 % part reaches zero speed at −32…−62 %. So the line cannot be used to find the dead zone here:
+at low PWM the real speeds are far above the line (Figure 4.2).
+
+**Saturation: none.** At 100 % the speed is still on the straight line (101–102 % of it). The curve is bent only at low PWM, not at
+the top.
+
+**After power-off the wheel spins on freely.**
+- **How far:** after the motor is set to 0, the wheel turns another 2.2–2.3 rad (M4) and 3.2–3.6 rad (M3), median over all steps.
+  From full speed it is 170–390° (3–6.8 rad). With the 3.75 cm wheel radius from the course example, that would be 11–25 cm of
+  travel.
+- **How fast it slows down:** the "coasting time constant" (coasting angle divided by the speed before power-off) is 0.24 s for M4
+  and 0.29–0.32 s for M3. That is about twice the normal $T_m$, and 5–10 times $T_m$ at high PWM.
+- **Why:** in TRIK, power 0 simply switches the motor driver off; braking is a separate command. Nothing actively brakes the motor,
+  so only friction slows the wheel down.
+
+M3 has less friction than M4: after the −100 % step it was still turning 30° in the last 0.3 s of the 1 s coasting window, so the next
+step started while the wheel was still moving a little. For the model this means that PWM = 0 needs its own, slower time constant
+(model D uses it).
+
+**Gear backlash is too small to measure here.**
+- In the square wave, the measured speed changes sign 86–117 ms after the command reverses. That is the same time as model E
+  (109–117 ms), or up to 22 ms earlier.
+- After a reversal, the encoder stays at the same value for only 10–26 ms on average, about one sample.
+
+So the play in the gears does not cause a delay we can see. One sample is about 27 ms and one encoder count is 1°, and the effect is
+smaller than that.
+
+Figure 5.3 also shows that after a reversal the real wheel turns around a little earlier, and goes 5–8° less far, than model E. When
+full power is applied in the opposite direction, the motor reverses faster than one $T_m$ of about 0.15 s predicts, the same effect as
+in the chirp.
+
+Backlash can still be seen indirectly in two places:
+- **In the step series:** the ±10 % steps start suddenly instead of smoothly (section 5.3).
+- **In the chirp at 2–5 Hz:** here the wheel swings only 10–50° per cycle, and it does not come back to the same angle each cycle. It
+  shifts by up to about 40° per cycle (table above). M4 always shifts forward, because it is faster forward. M3 shifts sometimes
+  backward and sometimes forward (−41°, then +45°), which looks like gear play and sticking rather than a property of the motor.
+
+**The real time between samples is 4–6 times longer than the 5 ms Timer.**
+- **Measured:** the median is 20 ms in the step programs and 26–28 ms in the signal programs, which do more work per loop. The
+  shortest interval is 13 ms, the longest 44–63 ms.
+- **Why:** writing to the file in every loop takes most of the time.
+- **How irregular:** fewer than 0.7 % of the intervals are more than twice the median.
+
+What this changes:
+1. One encoder count between two samples already means a speed of 1°/20 ms = 0.87 rad/s. That is 6 % of full speed, so the
+   measured speed jumps in steps of that size.
+2. The motor command is updated only every ~27 ms. At 5 Hz that is just 7 updates per period, and it adds a delay of about half a
+   sample (~14 ms, about 25° at 5 Hz).
+3. If we used 5 ms instead of the recorded times, every speed would come out 4–6 times too big. So the notebook always uses the
+   recorded `time()` values.
+
+**The battery did not have a measurable effect.**
+- **Voltage readings:** only one reading per run: 11.2 V for all step series, 11.3 V for the square and chirp runs. The display
+  shows only one decimal (0.1 V, about 0.9 %), so a voltage drop during one 63 s run is too small to see.
+- **Repeated runs:** these give a better check. Run 2 divided by run 1 gives a speed ratio of 1.008 ± 0.039 for M4 and
+  0.985 ± 0.020 for M3, and $T_m$ changes by less than 4 ms on average. So any battery effect is at most about 1–2 % of speed.
+
+This is true at about 11.2 V. Close to TRIK's low-battery warning (10.9 V) the voltage falls faster. Also, the motor speed is not
+simply proportional to PWM × battery voltage (section 6.2), so the $k_e$ values are only valid at this battery voltage.
+
+
+**The encoder's whole-degree steps make the raw speed noisy.**
+- **Raw speed:** at 60 % PWM in steady state, the speed from `np.gradient` jumps around with a standard deviation of 0.60–0.64 rad/s.
+  This is close to the size of one encoder step (0.87 rad/s at 20 ms).
+- **With averaging:** a 5-sample moving average brings this down to 0.21–0.32 rad/s. This is the average used everywhere in the
+  notebook; it covers about 100 ms in the step files and about 135 ms in the signal files. A 15-sample average brings it down to
+  0.06–0.09 rad/s, but it also blurs fast changes.
+
+For odometry this is not a big problem, because odometry uses the angle itself, not the speed. The error is at most one count (1°)
+per wheel per reading. A controller that needs the speed has to smooth it and accept some delay.
+
+
+**The two wheels are not the same.** At the same PWM:
+- **Speed:** M3 (right) is 12 % faster at +10 % and 19 % faster at −10 %, but only 2 % faster at +100 % and 6 % at −100 %.
+- **Slope:** the 40–100 % slopes (and so $k_e$) differ by 10–13 %.
+- **$T_m$:** M3 reacts more slowly (median about 0.15 s vs 0.11–0.14 s for M4).
+
+So if both wheels get the same PWM, the robot will not drive straight; it will turn, most of all at low speed. The differences come
+from normal manufacturing differences between motors and gearboxes, and they are several times bigger than the run-to-run
+difference.
+
+## 6. Report
+
+### 6.2 Analysis
+
+**How well does the first-order model with constant $T_m$ and $k_e$ describe the motor?**
+Each single step looks like the model: the fitted curves miss the data by only about 1° (Figure 4.1). The problem is that the two
+numbers do not stay constant:
+- **Speed is not proportional to PWM.** Already at 10 % the wheel turns at 3.8–4.7 rad/s, about 30 % of full speed. Above 40 % the
+  speed grows in a straight line (0.09–0.11 rad/s per %), but that line would reach zero at −32…−62 %, not at 0 (Figure 4.2).
+- **$T_m$ changes with PWM.** It goes from 0.3–0.4 s at ±10 % down to 0.03–0.05 s at ±100 %. This happens in every run of both motors
+  (Figure 4.3).
+
+**Results:**
+- With constant $k_e$ and $T_m$ (models A–C), the model matches the square wave only 54–82 % in speed, and between −127 % and +35 % in
+  angle. At ±60 % the model predicts about 6 rad/s, but the real wheel turns at 9–10 rad/s, so the angle error grows every period.
+- When the measured speed curve is used together with one fixed $T_m$ (model E), the square-wave match rises to 84 % (M3) and 86 % (M4)
+  in speed, and 68 % and 82 % in angle. The 85 % target is reached only for the M4 speed.
+- The chirp is harder (59–72 % in speed): above 2 Hz the wheel reacts about twice as strongly as the model with $T_m \approx 0.15$ s.
+
+**Where the model is worst:**
+- right after the direction changes, and at low PWM, where the wheel first has to break free;
+- at fast frequencies (above 2 Hz);
+- in the angle, where small forward/backward differences add up over time.
+
+**Probable reasons:**
+- **TRIK's "power %" is not a voltage.** By default the TRIK software changes the power value with a table before sending it to the
+  motor driver (the `motor100` table: 10 % → 7 %, 60 % → 19 %, 90 % → 49 %, 100 % → 100 %). So
+  $U = \mathrm{PWM}/100 \cdot U_{battery}$ is not the real motor voltage. This is how TRIK is set up by default; it was not checked on
+  this robot.
+- **Lightly loaded motors behave differently at low PWM.** With the wheels in the air, the current through the motor is not
+  continuous at low PWM. This makes the motor faster and its reaction slower at low PWM, which fits both the steep start of the speed
+  curve and the large $T_m$ there.
+
+**Conclusion:** the basic shape of the model is right, but one $k_e$ is not enough. The model needs a measured speed curve (a lookup
+table). It works for commands that change slowly (up to about 1–2 Hz), with $T_m \approx 0.13$–$0.15$ s. The chirp gives the same
+value (0.13–0.17 s) independently.
+
+**Forward vs backward rotation: are they the same motor? One parameter set or two?**
+Not quite, and it depends on the motor:
+- **M4** is 6–8 % faster forward than backward at every PWM (slope 10 % higher).
+- **M3** differs by only 1–3 % in speed (slope 7 %).
+
+Two runs of the same motor agree within 1–2 %, so the M4 difference is real. You can also see it in the square wave, where M4's angle
+creeps forward every period (Figure 4.4). $T_m$ does not show a clear difference between directions; it changes much more with PWM.
+
+**Recommendation:**
+- **Without encoder feedback** (choosing a PWM for a wanted speed), use separate values for each wheel and each direction, best a speed
+  table for each. Two straight lines are not enough either: model C (one line per direction) is still much worse than model E.
+- **With encoder feedback**, one set of values is fine, because the feedback corrects the remaining few per cent.
+
+**Which artifacts were found, how large are they, and which matter for odometry next week?**
+
+| Artifact | How big | Important for odometry? |
+|---|---|---|
+| Speed not proportional to PWM, $T_m$ changes with PWM | 30 % of full speed already at 10 % PWM; $T_m$ 0.03–0.4 s | Not directly; but important for any controller that sets the speed through PWM |
+| Forward/backward difference | 6–8 % (M4), 1–3 % (M3) | No: the encoders measure the real rotation |
+| Left/right difference | 2–19 % in speed | No for odometry; yes for driving straight without feedback |
+| Dead zone / breaking free | below 10 % once moving, about 9–15 % from rest | Very small movements may not happen, but the encoder still reports correctly |
+| Saturation | none | — |
+| Coasting after power-off | Wheel spins freely; slows down with about 0.24–0.30 s; 170–390° (about 11–25 cm) from full speed | **Yes:** keep reading the encoders after the stop command, because the robot rolls on |
+| Irregular sampling | 20–28 ms instead of 5 ms, range 13–63 ms | **Yes:** always use the recorded time stamps, never a fixed time step |
+| Encoder steps (quantisation) | 1° per count; 0.6–0.9 rad/s noise in the speed | **Yes, a little:** compute the position from angle differences, not from the noisy speed |
+| Backlash | at most 1 sample / 1 count at reversals; up to ~40° shift per cycle in fast back-and-forth motion | Small in normal driving; matters when the robot changes direction often by small amounts |
+| Battery drop | too small to measure (< 0.1 V); runs repeat within 1–2 % | No, as long as the values are measured near the voltage used |
+| Zero drift | none (0 counts in 3 s) | Good: the encoders do not drift when the robot stands still |
+
+The two biggest odometry errors could not be measured, because the wheels were in the air: **wheel slip** on the floor, and errors
+in the **wheel radius and the distance between the wheels**. These should be calibrated on the floor next week.
+
+**Which complex signal was chosen and what did it show that the step series did not?**
+The main signal was a **square wave** (A = 60 %, P = 1 s, 8 s). The second was a **chirp** (A = 60 %, from 0.2 to 5 Hz in 10 s).
+
+The square wave tested the model with 16 direction changes in one run. It showed that:
+- the speed curve from the steps, with one fixed $T_m$, follows the real motion well (speed fit 84–86 %), while a constant $k_e$ does
+  not (54–69 % for model A);
+- the small forward/backward difference adds up into a drift of the angle;
+- direction changes are not delayed by gear backlash by more than one sample.
+
+The chirp showed things the steps cannot show, because it tests many speeds of change at once:
+- the response gets about 4 times smaller from 0.6 to 4.5 Hz, and the delay grows to 72–78°;
+- at slow frequencies (up to 2 Hz) the delay gives $T_m$ = 0.13–0.17 s, the same as the steps, but this time for a wheel that is
+  already moving;
+- above 2 Hz the motor is faster than any model with one fixed $T_m$;
+- when the wheel only swings a few tens of degrees, it shifts by up to ~40° per cycle;
+- at 5 Hz there are only 7 samples per period, so the sampling becomes a limit;
+- its slow start from rest gave a direct estimate of the PWM at which the wheel breaks free (9–18 %).
+
